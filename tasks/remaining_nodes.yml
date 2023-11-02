@@ -37,6 +37,12 @@
   when: (rke2_custom_registry_mirrors | length > 0 or rke2_custom_registry_configs | length > 0)
   register: config_file_is_changed
 
+- name: Wait for RKE2 port open
+  ansible.builtin.wait_for:
+    host: "{{ rke2_api_private_ip | default(rke2_api_ip) }}"
+    port: 9345
+  delegate_to: "{{ groups[rke2_servers_group_name].1 }}"
+
 - name: Start RKE2 service on the rest of the nodes
   ansible.builtin.systemd:
     name: "rke2-{{ rke2_type }}.service"
