@@ -117,6 +117,22 @@
     - rke2_versions.running_version != rke2_version
   notify: RKE2 version changed
 
+# systemctl is-active can report "active" for a service that is actually stuck
+# in a crash/auto-restart loop and has never completed a successful bootstrap
+# (e.g. a server that keeps failing to validate its join token against an
+# address, such as a kube-vip VIP, that only becomes reachable once a server
+# has already bootstrapped). Requiring on-disk evidence that this node's
+# datastore was actually initialized prevents such a node from being
+# misdetected as an already-active server, which would otherwise cause every
+# node (including a genuinely fresh first server) to skip first-server
+# bootstrap and get stuck permanently trying to join a cluster that never
+# came up.
+- name: Check if the RKE2 datastore has been initialized
+  ansible.builtin.stat:
+    path: "{{ rke2_data_path }}/server/db"
+  register: rke2_datastore_check
+  when: inventory_hostname in groups[rke2_servers_group_name]
+
 - name: Group Active Servers
   ansible.builtin.group_by:
     key: rke2_active_servers
@@ -125,6 +141,7 @@
     - rke2_ha_mode | bool
     - inventory_hostname in groups[rke2_servers_group_name]
     - rke2_versions.running_version != 'not running'
+    - rke2_datastore_check.stat.exists | default(false)
 
 - name: Run AirGap RKE2 script
   ansible.builtin.command:
