@@ -92,3 +92,20 @@
   when:
     - rke2_cni != 'none'
     - inventory_hostname == active_server or inventory_hostname == groups[rke2_servers_group_name].0
+
+# The two waits above are only performed by one observer host (the active
+# server), but with the linear strategy every host in this play -- including
+# the ones that skipped those waits -- only reaches this task after the
+# observer's wait has already succeeded for the whole cluster. So it's safe
+# for every host to clear its own flags here. Only do so for hosts that
+# weren't already bootstrapped before this run: those are genuinely joining
+# for the first time, so any rke2_restart_needed raised by this same
+# first-time config/version templating isn't a separate restart still owed.
+# Already-established hosts going through this file again (e.g. during a
+# routine config change or upgrade) keep their real restart-needed signal so
+# the orchestrated "Rolling RKE2 restart" play still picks them up.
+- name: Clear restart-needed flags for nodes joining for the first time
+  ansible.builtin.set_fact:
+    rke2_restart_needed: false
+    rke2_version_changed: false
+  when: not (rke2_already_bootstrapped | default(false))

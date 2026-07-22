@@ -133,6 +133,25 @@
   register: rke2_datastore_check
   when: inventory_hostname in groups[rke2_servers_group_name]
 
+- name: Check if this agent has completed RKE2 join
+  ansible.builtin.stat:
+    path: "{{ rke2_data_path }}/agent/kubelet.kubeconfig"
+  register: rke2_agent_bootstrap_check
+  when: inventory_hostname in groups[rke2_agents_group_name]
+
+# Captured before any install/start tasks below can change it, so this
+# reflects whether this specific host had already completed its own
+# bootstrap/join prior to this run -- not whether its service merely looks
+# "active" (which can be true for a node stuck crash-looping that never
+# actually finished bootstrapping). first_server.yml/remaining_nodes.yml use
+# this to scope their end-of-run rke2_restart_needed cleanup to hosts that are
+# genuinely joining for the first time, without silencing legitimate
+# restart-needed signals raised for already-established hosts by a real
+# config or version change.
+- name: Set fact for whether this host already completed RKE2 bootstrap
+  ansible.builtin.set_fact:
+    rke2_already_bootstrapped: "{{ (rke2_datastore_check.stat.exists | default(false)) or (rke2_agent_bootstrap_check.stat.exists | default(false)) }}"
+
 - name: Group Active Servers
   ansible.builtin.group_by:
     key: rke2_active_servers

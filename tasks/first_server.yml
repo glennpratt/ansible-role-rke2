@@ -138,6 +138,18 @@
   until:
     '" Ready "  in first_server.stdout'
   retries: 40
+
+# This file only ever runs when there was no active server yet (a genuine
+# first-time cluster bring-up, or a full recovery from one), and we've just
+# confirmed above that this node is Ready. Any rke2_restart_needed raised by
+# this same first-time config/version templating is not indicative of a
+# separate, wasteful restart still owed -- clear it so callers that assert
+# "no restart needed on a fresh install" (see app-platform's common.yml) see
+# an accurate signal.
+- name: Clear restart-needed flags after a successful first-time bring-up
+  ansible.builtin.set_fact:
+    rke2_restart_needed: false
+    rke2_version_changed: false
   delay: 15
   when: rke2_cni != 'none'
 
